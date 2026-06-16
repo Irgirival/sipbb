@@ -1,11 +1,3 @@
 ```
-# Dependencies
-node_modules/
-
-# Environment variables
-.env
-
-# Database file
-db/sipbb.db
-
+.vercel/
 ```
