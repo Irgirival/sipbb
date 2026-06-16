@@ -4,10 +4,6 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "frontend/**/*",
-      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -16,16 +12,24 @@
       "dest": "server.js"
     },
     {
-      "src": "/admin(.*)",
+      "src": "/admin(/?)",
       "dest": "frontend/admin/index.html"
     },
     {
-      "src": "/pbb(.*)",
-      "dest": "frontend/pbb.html"
+      "src": "/admin/(.*)",
+      "dest": "frontend/admin/index.html"
+    },
+    {
+      "src": "/pbb(/?)",
+      "dest": "frontend/public/pbb.html"
     },
     {
       "src": "/uploads/(.*)",
       "dest": "uploads/$1"
+    },
+    {
+      "src": "/(.*)\\.(html|css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)",
+      "dest": "frontend/public/$1.$2"
     },
     {
       "src": "/(.*)",

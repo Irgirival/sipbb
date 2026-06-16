@@ -18,37 +18,53 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Serve frontend
+// Serve frontend files from public folder
 app.use(express.static(path.join(__dirname, 'frontend/public')));
-app.use('/pages', express.static(path.join(__dirname, 'pages')));
-app.use('/frontend', express.static(path.join(__dirname, 'frontend')));
+
+// Admin route - serve admin panel
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend/admin/index.html'));
+});
+
+app.get('/admin/:path*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend/admin/index.html'));
+});
+
+// PBB page route
+app.get('/pbb', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend/public/pbb.html'));
+});
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/pbb', require('./routes/pbb'));
 app.use('/api/admin', require('./routes/admin'));
 
-// Public API wrapper
+// Public API wrapper for village settings and PBB public endpoints
 app.use('/api/public', (req, res, next) => {
-  // Rewrite /api/public/* to appropriate routes
   const originalUrl = req.url;
+  
   if (originalUrl.startsWith('/pbb/')) {
+    // Forward to pbb routes
+    const pbbRouter = require('./routes/pbb');
     req.url = originalUrl.replace('/pbb/', '/');
-    require('./routes/pbb')(require('express').Router(), (err) => { if (err) console.error(err); })(req, res, next);
+    return pbbRouter(req, res, next);
   } else if (originalUrl === '/settings') {
     const { query } = require('./db/database');
-    const rows = query('SELECT key, value FROM village_settings');
-    const obj = {};
-    rows.forEach(r => obj[r.key] = r.value);
-    return res.json(obj);
+    try {
+      const rows = query('SELECT key, value FROM village_settings');
+      const obj = {};
+      rows.forEach(r => obj[r.key] = r.value);
+      return res.json(obj);
+    } catch (e) {
+      return res.json({});
+    }
+  } else if (originalUrl === '/berita' || originalUrl === '/pengumuman' || originalUrl === '/gallery') {
+    // Return empty arrays for now
+    return res.json([]);
   } else {
     next();
   }
-});
-
-// SPA fallback for admin pages
-app.get('/admin*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend/admin/index.html'));
 });
 
 // Error handler
@@ -59,15 +75,19 @@ app.use((err, req, res, next) => {
 
 // Init DB and start
 async function start() {
-  await getDb();
-  await seedPBB();
-  app.listen(PORT, () => {
-    console.log(`\n🏛️  SIPBB Desa Kasomalang Kulon`);
-    console.log(`🌐  Server: http://localhost:${PORT}`);
-    console.log(`👨‍💼  Admin: http://localhost:${PORT}/admin`);
-    console.log(`📋  API:   http://localhost:${PORT}/api`);
-    console.log(`\n✅  Default login: admin / admin123\n`);
-  });
+  try {
+    await getDb();
+    await seedPBB();
+    app.listen(PORT, () => {
+      console.log(`\n🏛️  SIPBB Desa Kasomalang Kulon`);
+      console.log(`🌐  Server: http://localhost:${PORT}`);
+      console.log(`👨‍💼  Admin: http://localhost:${PORT}/admin`);
+      console.log(`📋  API:   http://localhost:${PORT}/api`);
+      console.log(`\n✅  Default login: admin / admin123\n`);
+    });
+  } catch (e) {
+    console.error('Failed to start server:', e);
+  }
 }
 
 start().catch(console.error);
