@@ -19,17 +19,36 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Serve frontend
-app.use(express.static(path.join(__dirname, '../frontend/public')));
+app.use(express.static(path.join(__dirname, 'frontend/public')));
+app.use('/pages', express.static(path.join(__dirname, 'pages')));
+app.use('/frontend', express.static(path.join(__dirname, 'frontend')));
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/public', require('./routes/public'));
 app.use('/api/pbb', require('./routes/pbb'));
 app.use('/api/admin', require('./routes/admin'));
 
+// Public API wrapper
+app.use('/api/public', (req, res, next) => {
+  // Rewrite /api/public/* to appropriate routes
+  const originalUrl = req.url;
+  if (originalUrl.startsWith('/pbb/')) {
+    req.url = originalUrl.replace('/pbb/', '/');
+    require('./routes/pbb')(require('express').Router(), (err) => { if (err) console.error(err); })(req, res, next);
+  } else if (originalUrl === '/settings') {
+    const { query } = require('./db/database');
+    const rows = query('SELECT key, value FROM village_settings');
+    const obj = {};
+    rows.forEach(r => obj[r.key] = r.value);
+    return res.json(obj);
+  } else {
+    next();
+  }
+});
+
 // SPA fallback for admin pages
 app.get('/admin*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/admin/index.html'));
+  res.sendFile(path.join(__dirname, 'frontend/admin/index.html'));
 });
 
 // Error handler

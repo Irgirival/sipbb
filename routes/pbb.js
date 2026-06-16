@@ -26,6 +26,62 @@ const upload = multer({
   }
 });
 
+// PUBLIC: Cek NOP (no auth required)
+router.get('/cek', (req, res) => {
+  const { nop } = req.query;
+  if (!nop) return res.status(400).json({ error: 'NOP wajib diisi' });
+  
+  const wp = get('SELECT * FROM wajib_pajak WHERE nop = ?', [nop]);
+  if (!wp) return res.status(404).json({ error: 'NOP tidak ditemukan' });
+  
+  const tunggakan = query('SELECT * FROM tunggakan WHERE wp_id = ? ORDER BY tahun DESC', [wp.id]);
+  const lokasi = wp.rw === 'luar' ? 'Luar Desa Kasomalang Kulon' : `Kp. Kasomalang Kulon RT ${wp.rt}/RW ${wp.rw}`;
+  
+  res.json({
+    nama: wp.nama,
+    nop: wp.nop,
+    lokasi,
+    tunggakan
+  });
+});
+
+// PUBLIC: Analytics (no auth required)
+router.get('/analytics', (req, res) => {
+  const totals = get(`
+    SELECT
+      COUNT(DISTINCT wp.id) as total_wp,
+      COALESCE(SUM(CASE WHEN t.status='belum' THEN t.jumlah ELSE 0 END), 0) as total_tunggakan,
+      COUNT(DISTINCT CASE WHEN COALESCE(t.status,'belum')='belum' THEN wp.id END) as belum_lunas,
+      COUNT(DISTINCT CASE WHEN COALESCE(t.status,'lunas')='lunas' THEN wp.id END) as sudah_lunas
+    FROM wajib_pajak wp
+    LEFT JOIN tunggakan t ON t.wp_id = wp.id
+  `);
+  
+  const yearSummary = query(`
+    SELECT tahun, COUNT(DISTINCT wp.id) as jumlah_wp, SUM(t.jumlah) as total
+    FROM tunggakan t
+    JOIN wajib_pajak wp ON t.wp_id = wp.id
+    WHERE t.status = 'belum'
+    GROUP BY tahun
+    ORDER BY tahun
+  `);
+  
+  const rwSummary = query(`
+    SELECT wp.rw, wp.rt, COUNT(DISTINCT wp.id) as jumlah_wp, 
+           COALESCE(SUM(CASE WHEN t.status='belum' THEN t.jumlah ELSE 0 END), 0) as total_tunggakan
+    FROM wajib_pajak wp
+    LEFT JOIN tunggakan t ON t.wp_id = wp.id
+    GROUP BY wp.rw, wp.rt
+    ORDER BY wp.rw, wp.rt
+  `);
+  
+  res.json({
+    totals,
+    yearSummary,
+    rwSummary
+  });
+});
+
 // GET wajib pajak list (filtered by RT role)
 router.get('/wajib-pajak', auth, staffOnly, (req, res) => {
   const { nama, nop, rw, rt, status_tunggakan, page = 1, limit = 25 } = req.query;
